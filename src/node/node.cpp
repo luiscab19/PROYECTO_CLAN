@@ -1,111 +1,175 @@
 #include "node.h"
-#include <cstring>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
-// Función auxiliar para duplicar strings
-char* duplicarString(const char* s) {
-    if (!s) return nullptr;
-    char* copia = (char*)malloc(strlen(s) + 1);
-    if (copia) strcpy(copia, s);
-    return copia;
+using namespace std;
+
+bool Contributor::operator>(const Contributor& other) const {
+    if (contribution_level != other.contribution_level) {
+        return contribution_level > other.contribution_level;
+    }
+    return age > other.age;
 }
 
-// Implementación de Contributor
+Node::Node(int id, string name, string last_name, char gender, int age, 
+     int id_father, bool is_dead, bool was_chief, bool is_chief) :
+    id(id), name(name), last_name(last_name), gender(toupper(gender)), age(age),
+    id_father(id_father), is_dead(is_dead), was_chief(was_chief),
+    is_chief(is_chief), left(nullptr), right(nullptr),
+    contributors(nullptr), contributorCount(0), contributorCapacity(0) {}
 
-Contributor::Contributor(const char* n, int a, int i, const char* d, int g) :
-    age(a), id(i), contributionGrade(g), next(nullptr) {
-    name = duplicarString(n);
-    description = duplicarString(d);
+Node::~Node() {
+    delete left;
+    delete right;
+    delete[] contributors;
 }
 
-Contributor::~Contributor() {
-    free(name);
-    free(description);
-    delete next; 
+bool Node::hasChildren() { return left != nullptr; }
+bool Node::hasBrothers() { return right != nullptr; }
+
+int Node::countChildren() {
+    int count = 0;
+    Node* child = left;
+    while (child != nullptr) {
+        count++;
+        child = child->right;
+    }
+    return count;
 }
 
-// Implementación de ClanMember
-
-ClanMember::ClanMember(int id, const char* name, const char* last_name, char gender, int age, int id_father, bool is_dead, bool was_chief, bool is_chief) :
-    id(id), gender(gender), age(age), id_father(id_father),
-    is_dead(is_dead), was_chief(was_chief), is_chief(is_chief),
-    first_child(nullptr), second_child(nullptr), contributors(nullptr) {
-    this->name = duplicarString(name);
-    this->last_name = duplicarString(last_name);
+Node* Node::findChild() {
+    if (!hasChildren()) return nullptr;
+    Node* current = left;
+    while (current != nullptr) {
+        if (!current->is_dead) return current;
+        current = current->right;
+    }
+    return nullptr;
 }
 
-ClanMember::~ClanMember() {
-    free(name);
-    free(last_name);
-    delete first_child;  // Elimina árbol recursivamente
-    delete second_child;
-    delete contributors; // Elimina lista de colaboradores
+Node* Node::findBrother() {
+    if (!hasBrothers()) return nullptr;
+    Node* current = right;
+    while (current != nullptr) {
+        if (!current->is_dead) return current;
+        current = current->right;
+    }
+    return nullptr;
 }
 
-void ClanMember::addContributor(Contributor* nuevo) {
-    if (!nuevo) return;
+Node* Node::findUncle(Node* father) {
+    if (father == nullptr) return nullptr;
+    return father->findBrother();
+}
 
-    // Caso: lista vacía o nuevo tiene mayor prioridad
-    if (!contributors || nuevo->contributionGrade > contributors->contributionGrade) {
-        nuevo->next = contributors;
-        contributors = nuevo;
+Node* Node::findAncestorWithTwoChildren() {
+    Node* current = this;
+    while (current != nullptr) {
+        if (current->left != nullptr && current->left->right != nullptr) {
+            return current;
+        }
+        current = current->left;
+    }
+    return nullptr;
+}
+
+void Node::print() {
+    cout << "ID: " << id << "\nNombre: " << name << " " << last_name
+         << "\nGénero: " << gender << "\nEdad: " << age
+         << "\nID Padre: " << (id_father == -1 ? "Ninguno" : to_string(id_father))
+         << "\nEstá muerto: " << (is_dead ? "Sí" : "No")
+         << "\nFue jefe: " << (was_chief ? "Sí" : "No")
+         << "\nEs jefe: " << (is_chief ? "Sí" : "No")
+         << "\n----------------------------\n";
+}
+
+void Node::printContributors() {
+    if (contributorCount == 0) {
+        cout << "No hay contribuidores registrados para este miembro.\n";
         return;
     }
-
-    // Buscar posición de inserción
-    Contributor* actual = contributors;
-    while (actual->next && (nuevo->contributionGrade < actual->next->contributionGrade || 
-        (nuevo->contributionGrade == actual->next->contributionGrade &&  nuevo->age >= actual->next->age))) {
-        actual = actual->next;
-    }
-
-    // Insertar el nuevo colaborador
-    nuevo->next = actual->next;
-    actual->next = nuevo;
-}
-
-void ClanMember::sortContributors() {
-    if (!contributors || !contributors->next) return;
-
-    bool ordenado;
-    do {
-        ordenado = true;
-        Contributor** ptr = &contributors;
-        
-        while (*ptr && (*ptr)->next) {
-            Contributor* actual = *ptr;
-            Contributor* siguiente = actual->next;
-            
-            // Ordenar por grado (desc) y edad (asc)
-            if (actual->contributionGrade < siguiente->contributionGrade || (actual->contributionGrade == siguiente->contributionGrade && actual->age > siguiente->age)) {
-                actual->next = siguiente->next;
-                siguiente->next = actual;
-                *ptr = siguiente;
-                ordenado = false;
-            }
-            ptr = &(*ptr)->next;
-        }
-    } while (!ordenado);
-}
-
-void ClanMember::transferContributors(ClanMember* nuevo_jefe) {
-    if (!nuevo_jefe) return;
     
-    Contributor* actual = contributors;
-    while (actual) {
-        Contributor* temp = actual->next;
-        nuevo_jefe->addContributor(actual);
-        actual = temp;
+    cout << "\n=== Contribuidores de " << name << " " << last_name << " ===\n";
+    for (int i = 0; i < contributorCount; i++) {
+        cout << "Nombre: " << contributors[i].name << "\nEdad: " << contributors[i].age 
+             << "\nID: " << contributors[i].id << "\nContribución: " << contributors[i].contribution
+             << "\nNivel: " << contributors[i].contribution_level << "/10"
+             << "\n----------------------------\n";
     }
-    contributors = nullptr;
 }
 
-bool ClanMember::canAddChild() const {
-    return !first_child || !second_child;
+string Node::toCSV() {
+    stringstream ss;
+    ss << id << ";" << name << ";" << last_name << ";" << gender << ";"
+       << age << ";" << (id_father == -1 ? "" : to_string(id_father)) << ";"
+       << (is_dead ? "1" : "0") << ";" << (was_chief ? "1" : "0") << ";"
+       << (is_chief ? "1" : "0");
+    return ss.str();
 }
 
-ClanMember* ClanMember::getOtherChild(const ClanMember* hijo) const {
-    if (first_child == hijo) return second_child;
-    if (second_child == hijo) return first_child;
-    return nullptr;
+void Node::addContributor(string name, int age, int id, string contribution, int level) {
+    if (contributorCount == contributorCapacity) {
+        int newCapacity = contributorCapacity == 0 ? 2 : contributorCapacity * 2;
+        Contributor* newContributors = new Contributor[newCapacity];
+        
+        for (int i = 0; i < contributorCount; i++) {
+            newContributors[i] = contributors[i];
+        }
+        
+        delete[] contributors;
+        contributors = newContributors;
+        contributorCapacity = newCapacity;
+    }
+    
+    contributors[contributorCount++] = Contributor(name, age, id, contribution, level);
+    sortContributors();
+}
+
+void Node::sortContributors() {
+    for (int i = 0; i < contributorCount - 1; i++) {
+        for (int j = 0; j < contributorCount - i - 1; j++) {
+            if (contributors[j] > contributors[j + 1]) {
+                Contributor temp = contributors[j];
+                contributors[j] = contributors[j + 1];
+                contributors[j + 1] = temp;
+            }
+        }
+    }
+}
+
+void Node::loadContributors(const string& filename, int memberId) {
+    ifstream file(filename);
+    if (!file.is_open()) return;
+    
+    string line;
+    getline(file, line); // Header
+    
+    while (getline(file, line)) {
+        if (line.empty()) continue;
+        
+        stringstream ss(line);
+        string token;
+        string tokens[6];
+        int tokenCount = 0;
+        
+        while (getline(ss, token, ';') && tokenCount < 6) {
+            tokens[tokenCount++] = token;
+        }
+        
+        if (tokenCount < 6) continue;
+        
+        int currentMemberId = stoi(tokens[0]);
+        if (currentMemberId != memberId) continue;
+        
+        string name = tokens[1];
+        int age = stoi(tokens[2]);
+        int id = stoi(tokens[3]);
+        string contribution = tokens[4];
+        int level = stoi(tokens[5]);
+        
+        addContributor(name, age, id, contribution, level);
+    }
+    
+    file.close();
 }

@@ -1,42 +1,58 @@
 #ifndef NODE_H
 #define NODE_H
 
-// Estructura que representa a un colaborador del clan
-struct Contributor {
-    char* name;               
-    int age;                  
-    int id;                   
-    char* description;        
-    int contributionGrade;    
-    Contributor* next;        
-    
-    Contributor(const char* n, int a, int i, const char* d, int g);
-    ~Contributor();
+#include <string>
+using namespace std;
+
+class Contributor {
+public:
+    string name;
+    int age;
+    int id;
+    string contribution;
+    int contribution_level;
+
+    Contributor() : name(""), age(0), id(0), contribution(""), contribution_level(0) {}
+    Contributor(string n, int a, int i, string c, int cl) : 
+        name(n), age(a), id(i), contribution(c), contribution_level(cl) {}
+
+    bool operator>(const Contributor& other) const;
 };
 
-// Estructura que representa un miembro del clan
-struct ClanMember {
-    int id;                  
-    char* name;              
-    char* last_name;         
-    char gender;             
-    int age;                 
-    int id_father;          
-    bool is_dead;            
-    bool was_chief;          
-    bool is_chief;           
-    ClanMember* first_child;  // Primer hijo 
-    ClanMember* second_child; // Segundo hijo
-    Contributor* contributors; // Lista de colaboradores
-    
-    ClanMember(int id, const char* name, const char* last_name, char gender, int age, int id_father, bool is_dead, bool was_chief, bool is_chief);
-    ~ClanMember();
-    
-    void addContributor(Contributor* contributor);
+class Node {
+public:
+    int id;
+    string name;
+    string last_name;
+    char gender;
+    int age;
+    int id_father;
+    bool is_dead;
+    bool was_chief;
+    bool is_chief;
+    Contributor* contributors;
+    int contributorCount;
+    int contributorCapacity;
+   
+    Node* left;
+    Node* right;
+   
+    Node(int id, string name, string last_name, char gender, int age, int id_father, bool is_dead, bool was_chief, bool is_chief);
+    ~Node();
+   
+    bool hasChildren();
+    bool hasBrothers();
+    int countChildren();
+    Node* findChild();
+    Node* findBrother();
+    Node* findUncle(Node* father);
+    Node* findAncestorWithTwoChildren();
+    void print();
+    void printContributors();
+    string toCSV();
+    void addContributor(string name, int age, int id, string contribution, int level);
     void sortContributors();
-    void transferContributors(ClanMember* new_chief);
-    bool canAddChild() const;
-    ClanMember* getOtherChild(const ClanMember* child) const;
+    void loadContributors(const string& filename, int memberId);
 };
 
-#endif // NODE_H
+#endif

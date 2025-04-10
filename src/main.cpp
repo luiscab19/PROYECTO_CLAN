@@ -34,19 +34,18 @@ int main() {
             option = 0;
         }
         clearInputBuffer();
-       
         switch (option) {
             case 1: clan.addMember(); break; //listo
-            case 2: clan.markAsDeceased(); break;
-            //case 3: clan.showShortSuccessionLine(); break;
-            //case 4: clan.showFullSuccessionLine(); break;
-            case 5: clan.updateMemberData(); break;
+            case 2: clan.markAsDeceased(); break; //listo
+            case 3: clan.showShortSuccessionLine(); break; //listo
+            case 4: clan.showFullSuccessionLine(); break; //medias
+            case 5: clan.updateMemberData(); break; //listo
             case 6: clan.showLivingMembers(); break; // Listo
             case 7: clan.showDeceasedMembers(); break; //listo
-            //case 8: clan.displayCurrentState(); break;
-            //case 9: clan.addContributor(); break; //lista
-            //case 10: clan.showContributors(); break;
-            //case 11: cout << "Saliendo...\n"; break;
+            case 8: clan.displayCurrentState(); break; //listo
+            case 9: clan.addContributor(); break; //lista
+            case 10: clan.showContributors(); break; //listo
+            case 11: cout << "Saliendo...\n"; break;
             default: cout << "Opción inválida\n";
         }
     } while (option != 11);

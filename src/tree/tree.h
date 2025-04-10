@@ -44,38 +44,46 @@ private:
         }
         return true;
     }
-
-    void printTree(Node* node, int level = 0) {
-        if (!node) return;
-       
-        for (int i = 0; i < level; ++i) cout << "  ";
-        cout << node->name << " " << node->last_name << " (ID:" << node->id << ")";
-        if (node->is_chief) cout << " [JEFE]";
-        if (node->is_dead) cout << " [DIFUNTO]";
-        cout << "\n";
-       
-        printTree(node->left, level + 1);
-        printTree(node->right, level);
-    }
-
-public:
-    Tree() : root(nullptr), currentChief(nullptr), nextId(1), filename("clan_data.csv"), contributorsFile("contributors.csv") {}
-    ~Tree() { delete root; }
    
-    void displayCurrentState() {
-        cout << "\n=== ESTADO ACTUAL ===\n";
-        if (currentChief) {
-            cout << "JEFE ACTUAL:\n";
-            currentChief->print();
-        } else {
-            cout << "Sin jefe actual\n";
+    void findChiefHelper(Node* node, Node** chief) {
+        if (node == nullptr || *chief != nullptr) return;
+        if (node->is_chief) {
+            *chief = node;
+            return;
         }
-       
-        cout << "\nÁRBOL COMPLETO:\n";
-        printTree(root);
-        cout << endl;
+        findChiefHelper(node->left, chief);
+        findChiefHelper(node->right, chief);
+    }
+   
+    Node* findFirstLivingSon(Node* node) {
+        if (node == nullptr || !node->hasChildren()) return nullptr;
+        Node* child = node->left;
+        while (child != nullptr) {
+            if (!child->is_dead && child->gender == 'M') return child;
+            child = child->right;
+        }
+        return nullptr;
+    }
+   
+    Node* findFirstLivingDaughter(Node* node) {
+        if (node == nullptr || !node->hasChildren()) return nullptr;
+        Node* child = node->left;
+        while (child != nullptr) {
+            if (!child->is_dead && child->gender == 'F') return child;
+            child = child->right;
+        }
+        return nullptr;
     }
 
+    void printLiving(Node* node, bool living) {
+        if (node == nullptr) return;
+        if (node->is_dead != living) {
+            node->print();
+        }
+        printLiving(node->left, living);
+        printLiving(node->right, living);
+    }
+   
     void saveToCSVHelper(Node* node, ofstream& file) {
         if (node == nullptr) return;
        
@@ -97,6 +105,43 @@ public:
         file.close();
     }
 
+    void printSuccessionLine(Node* node, int level = 0) {
+        if (!node) return;
+       
+        string indent;
+        for (int i = 0; i < level; i++) indent += "  ";
+        
+        cout << indent << "ID: " << node->id << " - " << node->name << " " << node->last_name;
+        if (node->is_chief) cout << " [JEFE ACTUAL]";
+        if (node->is_dead) cout << " [DIFUNTO]";
+        cout << endl;
+       
+        // Print children in order (first child and then its siblings)
+        Node* child = node->left;
+        while (child != nullptr) {
+            printSuccessionLine(child, level + 1);
+            child = child->right;
+        }
+    }
+
+    void saveContributorsHelper(Node* node, ofstream& file) {
+        if (!node) return;
+        
+        for (int i = 0; i < node->contributorCount; i++) {
+            file << node->id << ";" << node->contributors[i].name << ";" << node->contributors[i].age << ";"
+                 << node->contributors[i].id << ";" << node->contributors[i].contribution << ";" 
+                 << node->contributors[i].contribution_level << "\n";
+        }
+        
+        saveContributorsHelper(node->left, file);
+        saveContributorsHelper(node->right, file);
+    }
+
+public:
+    Tree() : root(nullptr), currentChief(nullptr), nextId(1), 
+             filename("clan_data.csv"), contributorsFile("contributors.csv") {}
+    ~Tree() { delete root; }
+   
     bool loadFromCSV() {
         ifstream file(filename);
         if (!file.is_open()) {
@@ -172,9 +217,176 @@ public:
         }
        
         file.close();
+       
+        // cargar contribudores
+        ifstream contribFile(contributorsFile);
+        if (contribFile.is_open()) {
+            string line;
+            getline(contribFile, line); // Header
+            
+            while (getline(contribFile, line)) {
+                if (line.empty()) continue;
+                
+                stringstream ss(line);
+                string token;
+                string tokens[6];
+                int tokenCount = 0;
+                
+                while (getline(ss, token, ';') && tokenCount < 6) {
+                    tokens[tokenCount++] = token;
+                }
+                
+                if (tokenCount < 6) continue;
+                
+                int memberId = stoi(tokens[0]);
+                Node* member = findNodeById(root, memberId);
+                if (!member) continue;
+                
+                string name = tokens[1];
+                int age = stoi(tokens[2]);
+                int id = stoi(tokens[3]);
+                string contribution = tokens[4];
+                int level = stoi(tokens[5]);
+                
+                member->addContributor(name, age, id, contribution, level);
+            }
+            
+            contribFile.close();
+        }
+       
+        currentChief = nullptr;
+        findChiefHelper(root, &currentChief);
+       
+        if (!currentChief && root) {
+            cerr << "Advertencia: No se encontró jefe en el árbol\n";
+        }
+       
         return root != nullptr;
     }
-
+    
+    void saveContributorsToCSV() {
+        ofstream file(contributorsFile);
+        if (!file.is_open()) {
+            cerr << "Error: No se pudo abrir " << contributorsFile << " para escritura\n";
+            return;
+        }
+        
+        file << "member_id;name;age;id;contribution;level\n";
+        saveContributorsHelper(root, file);
+        file.close();
+    }
+   
+    void showShortSuccessionLine() {
+        if (!currentChief) {
+            cout << "No hay jefe actual\n";
+            return;
+        }
+       
+        cout << "\n=== Línea de sucesión corta ===\n";
+        cout << "Jefe actual:\n";
+        currentChief->print();
+       
+        Node* heir1 = findNewChief(currentChief);
+        if (heir1) {
+            cout << "\nHeredero 1:\n";
+            heir1->print();
+           
+            Node* heir2 = findNewChief(heir1);
+            if (heir2) {
+                cout << "\nHeredero 2:\n";
+                heir2->print();
+            }
+        }
+    }
+   
+    void showFullSuccessionLine() {
+        if (!root) {
+            cout << "No hay datos en el árbol\n";
+            return;
+        }
+       
+        cout << "\n=== Línea de sucesión completa ===\n";
+        printSuccessionLine(root, 0);
+    }
+   
+    void updateChiefAutomatically() {
+        if (!currentChief) {
+            cout << "No hay jefe actual\n";
+            return;
+        }
+       
+        if (currentChief->is_dead || currentChief->age > 70) {
+            cout << "El jefe actual " << (currentChief->is_dead ? "ha fallecido" : "tiene más de 70 años (" + to_string(currentChief->age) + ")") << ". Buscando sucesor...\n";
+           
+            Node* newChief = findNewChief(currentChief);
+           
+            if (newChief) {
+                currentChief->is_chief = false;
+                currentChief->was_chief = true;
+                newChief->is_chief = true;
+                newChief->was_chief = false;
+               
+                cout << "\n=== Nuevo jefe ===\n";
+                newChief->print();
+                currentChief = newChief;
+                updateCSV();
+            } else {
+                cout << "No se encontró sucesor adecuado\n";
+            }
+        } else {
+            cout << "El jefe sigue siendo válido (edad: " << currentChief->age << ")\n";
+        }
+    }
+   
+    Node* findNewChief(Node* node) {
+        // 1. Find first living son
+        Node* candidate = findFirstLivingSon(node);
+        if (candidate) return candidate;
+       
+        // 2. Find first grandson through first living daughter
+        Node* firstDaughter = findFirstLivingDaughter(node);
+        if (firstDaughter && (candidate = findFirstLivingSon(firstDaughter))) {
+            return candidate;
+        }
+       
+        // 3. Check brothers
+        Node* brother = node->findBrother();
+        if (brother) {
+            if ((candidate = findFirstLivingSon(brother))) {
+                return candidate;
+            }
+            if (!brother->hasChildren()) {
+                return brother;
+            }
+        }
+       
+        // 4. Check uncles
+        Node* uncle = node->findUncle(findNodeById(root, node->id_father));
+        if (uncle) {
+            if ((candidate = findFirstLivingSon(uncle))) {
+                return candidate;
+            }
+            if (!uncle->hasChildren()) {
+                return uncle;
+            }
+        }
+       
+        // 5. Find ancestor with two children
+        Node* ancestor = node->findAncestorWithTwoChildren();
+        if (ancestor && (candidate = findFirstLivingSon(ancestor))) {
+            return candidate;
+        }
+       
+        // 6. If no males, apply same rules for females
+        if ((candidate = findFirstLivingDaughter(node))) return candidate;
+        if (firstDaughter && (candidate = findFirstLivingDaughter(firstDaughter))) return candidate;
+        if (brother && (candidate = findFirstLivingDaughter(brother))) return candidate;
+        if (uncle && (candidate = findFirstLivingDaughter(uncle))) return candidate;
+        if (ancestor && (candidate = findFirstLivingDaughter(ancestor))) return candidate;
+       
+        return nullptr;
+    }
+   
     void addMember() {
         if (root == nullptr) {
             cout << "Error: No se puede agregar miembros sin un árbol cargado\n";
@@ -229,56 +441,35 @@ public:
         cout << "Miembro agregado con ID " << newNode->id << endl;
         updateCSV();
     }
-
-    void showLivingMembers() {
-        cout << "\n=== MIEMBROS FALLECIDOS ===\n";
-        printLiving(root, false);
-    }
    
-    void showDeceasedMembers() {
-        cout << "\n=== MIEMBROS VIVOS ===\n";
-        printLiving(root, true);
-    }
-
-    void printLiving(Node* node, bool living) {
-        if (node == nullptr) return;
-        if (node->is_dead != living) {
-            node->print();
-        }
-        printLiving(node->left, living);
-        printLiving(node->right, living);
-    }
-
-    void updateChiefAutomatically() {
-        if (!currentChief) {
-            cout << "No hay jefe actual\n";
+    void markAsDeceased() {
+        int id;
+        cout << "ID del miembro fallecido: ";
+        cin >> id;
+        clearInputBuffer();
+       
+        Node* node = findNodeById(root, id);
+        if (!node) {
+            cout << "ID no encontrado\n";
             return;
         }
        
-        if (currentChief->is_dead || currentChief->age > 70) {
-            cout << "El jefe actual " << (currentChief->is_dead ? "ha fallecido" : "tiene más de 70 años (" + to_string(currentChief->age) + ")") << ". Buscando sucesor...\n";
-           
-            Node* newChief = findNewChief(currentChief);
-           
-            if (newChief) {
-                currentChief->is_chief = false;
-                currentChief->was_chief = true;
-                newChief->is_chief = true;
-                newChief->was_chief = false;
-               
-                cout << "\n=== Nuevo jefe ===\n";
-                newChief->print();
-                currentChief = newChief;
-                updateCSV();
-            } else {
-                cout << "No se encontró sucesor adecuado\n";
-            }
-        } else {
-            cout << "El jefe sigue siendo válido (edad: " << currentChief->age << ")\n";
+        if (node->is_dead) {
+            cout << "Este miembro ya estaba marcado como fallecido\n";
+            return;
         }
+       
+        node->is_dead = true;
+        cout << "Se ha registrado el fallecimiento de " << node->name << " " << node->last_name << endl;
+       
+        if (node->is_chief) {
+            cout << "Era el jefe actual. Buscando sucesor...\n";
+            updateChiefAutomatically();
+        }
+       
+        updateCSV();
     }
    
-
     void updateMemberData() {
         int id;
         cout << "ID del miembro a actualizar: ";
@@ -335,102 +526,82 @@ public:
        
         updateCSV();
     }
-
-    Node* findNewChief(Node* node) {
-        // 1. Find first living son
-        Node* candidate = findFirstLivingSon(node);
-        if (candidate) return candidate;
-       
-        // 2. Find first grandson through first living daughter
-        Node* firstDaughter = findFirstLivingDaughter(node);
-        if (firstDaughter && (candidate = findFirstLivingSon(firstDaughter))) {
-            return candidate;
+    
+    void addContributor() {
+        if (!currentChief) {
+            cout << "No hay jefe actual. No se pueden agregar contribuidores.\n";
+            return;
         }
-       
-        // 3. Check brothers
-        Node* brother = node->findBrother();
-        if (brother) {
-            if ((candidate = findFirstLivingSon(brother))) {
-                return candidate;
-            }
-            if (!brother->hasChildren()) {
-                return brother;
-            }
-        }
-       
-        // 4. Check uncles
-        Node* uncle = node->findUncle(findNodeById(root, node->id_father));
-        if (uncle) {
-            if ((candidate = findFirstLivingSon(uncle))) {
-                return candidate;
-            }
-            if (!uncle->hasChildren()) {
-                return uncle;
-            }
-        }
-       
-        // 5. Find ancestor with two children
-        Node* ancestor = node->findAncestorWithTwoChildren();
-        if (ancestor && (candidate = findFirstLivingSon(ancestor))) {
-            return candidate;
-        }
-       
-        // 6. If no males, apply same rules for females
-        if ((candidate = findFirstLivingDaughter(node))) return candidate;
-        if (firstDaughter && (candidate = findFirstLivingDaughter(firstDaughter))) return candidate;
-        if (brother && (candidate = findFirstLivingDaughter(brother))) return candidate;
-        if (uncle && (candidate = findFirstLivingDaughter(uncle))) return candidate;
-        if (ancestor && (candidate = findFirstLivingDaughter(ancestor))) return candidate;
-       
-        return nullptr;
-    }
-
-    Node* findFirstLivingSon(Node* node) {
-        if (node == nullptr || !node->hasChildren()) return nullptr;
-        Node* child = node->left;
-        while (child != nullptr) {
-            if (!child->is_dead && child->gender == 'M') return child;
-            child = child->right;
-        }
-        return nullptr;
-    }
-   
-    Node* findFirstLivingDaughter(Node* node) {
-        if (node == nullptr || !node->hasChildren()) return nullptr;
-        Node* child = node->left;
-        while (child != nullptr) {
-            if (!child->is_dead && child->gender == 'F') return child;
-            child = child->right;
-        }
-        return nullptr;
-    } 
-
-    void markAsDeceased() {
-        int id;
-        cout << "ID del miembro fallecido: ";
+        
+        string name, contribution;
+        int age, id, level;
+        
+        cout << "Nombre del contribuidor: ";
+        getline(cin, name);
+        cout << "Edad: ";
+        cin >> age;
+        cout << "ID: ";
         cin >> id;
         clearInputBuffer();
-       
-        Node* node = findNodeById(root, id);
-        if (!node) {
-            cout << "ID no encontrado\n";
+        cout << "Descripción de la contribución: ";
+        getline(cin, contribution);
+        cout << "Nivel de contribución (1-10): ";
+        cin >> level;
+        clearInputBuffer();
+        
+        if (level < 1 || level > 10) {
+            cout << "Nivel de contribución debe estar entre 1 y 10\n";
             return;
         }
-       
-        if (node->is_dead) {
-            cout << "Este miembro ya estaba marcado como fallecido\n";
+        
+        currentChief->addContributor(name, age, id, contribution, level);
+        cout << "Contribuidor agregado exitosamente al jefe actual\n";
+        saveContributorsToCSV();
+    }
+    
+    void showContributors() {
+        if (!currentChief) {
+            cout << "No hay jefe actual\n";
             return;
         }
-       
-        node->is_dead = true;
-        cout << "Se ha registrado el fallecimiento de " << node->name << " " << node->last_name << endl;
-       
-        if (node->is_chief) {
-            cout << "Era el jefe actual. Buscando sucesor...\n";
-            updateChiefAutomatically();
-        }
-       
-        updateCSV();
+        
+        currentChief->printContributors();
     }
    
+    void showLivingMembers() {
+        cout << "\n=== MIEMBROS VIVOS ===\n";
+        printLiving(root, false);
+    }
+   
+    void showDeceasedMembers() {
+        cout << "\n=== MIEMBROS FALLECIDOS ===\n";
+        printLiving(root, true);
+    }
+   
+    void printTree(Node* node, int level = 0) {
+        if (!node) return;
+       
+        for (int i = 0; i < level; ++i) cout << "  ";
+        cout << node->name << " " << node->last_name << " (ID:" << node->id << ")";
+        if (node->is_chief) cout << " [JEFE]";
+        if (node->is_dead) cout << " [DIFUNTO]";
+        cout << "\n";
+       
+        printTree(node->left, level + 1);
+        printTree(node->right, level);
+    }
+   
+    void displayCurrentState() {
+        cout << "\n=== ESTADO ACTUAL ===\n";
+        if (currentChief) {
+            cout << "JEFE ACTUAL:\n";
+            currentChief->print();
+        } else {
+            cout << "Sin jefe actual\n";
+        }
+       
+        cout << "\nÁRBOL COMPLETO:\n";
+        printTree(root);
+        cout << endl;
+    }
 };

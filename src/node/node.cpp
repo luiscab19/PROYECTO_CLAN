@@ -1,83 +1,111 @@
 #include "node.h"
-#include <iostream>
 #include <cstring>
+#include <cstdlib>
 
-using namespace std;
+// Función auxiliar para duplicar strings
+char* duplicarString(const char* s) {
+    if (!s) return nullptr;
+    char* copia = (char*)malloc(strlen(s) + 1);
+    if (copia) strcpy(copia, s);
+    return copia;
+}
 
-Contributor::Contributor(const char* n, int a, int i, const char* d, int g) : 
-    age(a), id(i), contributionGrade(g), next(nullptr) { 
-    name = new char[strlen(n) + 1];
-    strcpy(name, n);
-    
-    description = new char[strlen(d) + 1];
-    strcpy(description, d);
+// Implementación de Contributor
+
+Contributor::Contributor(const char* n, int a, int i, const char* d, int g) :
+    age(a), id(i), contributionGrade(g), next(nullptr) {
+    name = duplicarString(n);
+    description = duplicarString(d);
 }
 
 Contributor::~Contributor() {
-    delete[] name;
-    delete[] description;
-    delete next;
+    free(name);
+    free(description);
+    delete next; 
 }
 
+// Implementación de ClanMember
+
 ClanMember::ClanMember(int id, const char* name, const char* last_name, char gender, int age, int id_father, bool is_dead, bool was_chief, bool is_chief) :
-    id(id), gender(gender), age(age), id_father(id_father), is_dead(is_dead), was_chief(was_chief), is_chief(is_chief), first_child(nullptr), next_sibling(nullptr), contributors(nullptr) {
-    
-    this->name = new char[strlen(name) + 1];
-    strcpy(this->name, name);
-    
-    this->last_name = new char[strlen(last_name) + 1];
-    strcpy(this->last_name, last_name);
+    id(id), gender(gender), age(age), id_father(id_father),
+    is_dead(is_dead), was_chief(was_chief), is_chief(is_chief),
+    first_child(nullptr), second_child(nullptr), contributors(nullptr) {
+    this->name = duplicarString(name);
+    this->last_name = duplicarString(last_name);
 }
 
 ClanMember::~ClanMember() {
-    delete[] name;
-    delete[] last_name;
-    delete first_child;
-    delete next_sibling;
-    delete contributors;
+    free(name);
+    free(last_name);
+    delete first_child;  // Elimina árbol recursivamente
+    delete second_child;
+    delete contributors; // Elimina lista de colaboradores
 }
 
-void ClanMember::addContributor(Contributor* new_contributor) {
-    if (!contributors) {
-        contributors = new_contributor;
-    } else {
-        Contributor* current = contributors;
-        while (current->next) {
-            current = current->next;
-        }
-        current->next = new_contributor;
+void ClanMember::addContributor(Contributor* nuevo) {
+    if (!nuevo) return;
+
+    // Caso: lista vacía o nuevo tiene mayor prioridad
+    if (!contributors || nuevo->contributionGrade > contributors->contributionGrade) {
+        nuevo->next = contributors;
+        contributors = nuevo;
+        return;
     }
-    sortContributors();
+
+    // Buscar posición de inserción
+    Contributor* actual = contributors;
+    while (actual->next && (nuevo->contributionGrade < actual->next->contributionGrade || 
+        (nuevo->contributionGrade == actual->next->contributionGrade &&  nuevo->age >= actual->next->age))) {
+        actual = actual->next;
+    }
+
+    // Insertar el nuevo colaborador
+    nuevo->next = actual->next;
+    actual->next = nuevo;
 }
 
 void ClanMember::sortContributors() {
     if (!contributors || !contributors->next) return;
-    
-    bool swapped;
+
+    bool ordenado;
     do {
-        swapped = false;
+        ordenado = true;
         Contributor** ptr = &contributors;
         
-        while ((*ptr)->next) {
-            Contributor* first = *ptr;
-            Contributor* second = first->next;
+        while (*ptr && (*ptr)->next) {
+            Contributor* actual = *ptr;
+            Contributor* siguiente = actual->next;
             
-            bool should_swap = false;
-            if (first->contributionGrade < second->contributionGrade) {
-                should_swap = true;
-            } else if (first->contributionGrade == second->contributionGrade) {
-                if (first->age > second->age) {
-                    should_swap = true;
-                }
-            }
-            
-            if (should_swap) {
-                first->next = second->next;
-                second->next = first;
-                *ptr = second;
-                swapped = true;
+            // Ordenar por grado (desc) y edad (asc)
+            if (actual->contributionGrade < siguiente->contributionGrade || (actual->contributionGrade == siguiente->contributionGrade && actual->age > siguiente->age)) {
+                actual->next = siguiente->next;
+                siguiente->next = actual;
+                *ptr = siguiente;
+                ordenado = false;
             }
             ptr = &(*ptr)->next;
         }
-    } while (swapped);
+    } while (!ordenado);
+}
+
+void ClanMember::transferContributors(ClanMember* nuevo_jefe) {
+    if (!nuevo_jefe) return;
+    
+    Contributor* actual = contributors;
+    while (actual) {
+        Contributor* temp = actual->next;
+        nuevo_jefe->addContributor(actual);
+        actual = temp;
+    }
+    contributors = nullptr;
+}
+
+bool ClanMember::canAddChild() const {
+    return !first_child || !second_child;
+}
+
+ClanMember* ClanMember::getOtherChild(const ClanMember* hijo) const {
+    if (first_child == hijo) return second_child;
+    if (second_child == hijo) return first_child;
+    return nullptr;
 }

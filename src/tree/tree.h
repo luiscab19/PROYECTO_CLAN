@@ -139,7 +139,7 @@ private:
 
 public:
     Tree() : root(nullptr), currentChief(nullptr), nextId(1), 
-             filename("clan_data.csv"), contributorsFile("contributors.csv") {}
+             filename("../bin/clan_data.csv"),contributorsFile("../bin/Contributors.csv") {}
     ~Tree() { delete root; }
    
     bool loadFromCSV() {

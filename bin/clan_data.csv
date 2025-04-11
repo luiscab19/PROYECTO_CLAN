@@ -8,11 +8,11 @@ id;name;last_name;gender;age;id_father;is_dead;was_chief;is_chief
 12;Susan;Mackenzie;F;33;9;0;0;0
 13;Joseph;Mackenzie;M;27;9;0;0;0
 16;Nancy;Mackenzie;F;26;13;0;0;0
-19;Juan;Mackenzie ;M;35;16;1;0;0
 17;Louis;Mackenzie;M;20;13;0;0;0
 18;Luciam;Mackenzie;F;20;17;0;0;0
+19;Luis;Mackenzie;M;19;18;1;0;0
 3;Michael;Mackenzie;M;50;1;1;1;0
 6;William;Mackenzie;M;40;3;0;0;1
 10;Richard;Mackenzie;M;30;6;0;0;0
 11;Karen;Mackenzie;F;28;6;0;0;0
-14;Thomas;Mackenzie;M;24;11;0;0;0
+14;Tomas;Mackenzie;M;25;11;0;0;0
